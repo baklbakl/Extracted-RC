@@ -1451,6 +1451,16 @@ public class HardwareUtil {
         shadow = (defaultValue == null)
             ? ToolboxUtil.makeTypedEnumShadow("goBildaPinpoint", "readData")
             : ToolboxUtil.makeTypedEnumShadow("goBildaPinpoint", "readData", "READ_DATA", defaultValue);
+      } else if (argType.equals(GoBildaPinpointDriver.ErrorDetectionType.class.getName())) {
+        String defaultValue = parseEnumDefaultValue(parameterDefaultValues[i], GoBildaPinpointDriver.ErrorDetectionType.class);
+        shadow = (defaultValue == null)
+            ? ToolboxUtil.makeTypedEnumShadow("goBildaPinpoint", "errorDetectionType")
+            : ToolboxUtil.makeTypedEnumShadow("goBildaPinpoint", "errorDetectionType", "ERROR_DETECTION_TYPE", defaultValue);
+      } else if (argType.equals(GoBildaPinpointDriver.Register.class.getName())) {
+        String defaultValue = parseEnumDefaultValue(parameterDefaultValues[i], GoBildaPinpointDriver.Register.class);
+        shadow = (defaultValue == null)
+            ? ToolboxUtil.makeTypedEnumShadow("goBildaPinpoint", "register")
+            : ToolboxUtil.makeTypedEnumShadow("goBildaPinpoint", "register", "REGISTER", defaultValue);
       } else if (argType.equals(HuskyLens.Algorithm.class.getName())) {
         String defaultValue = parseEnumDefaultValue(parameterDefaultValues[i], HuskyLens.Algorithm.class);
         shadow = (defaultValue == null)
@@ -2540,6 +2550,7 @@ public class HardwareUtil {
     String identifier = hardwareItems.get(0).identifier;
     String zero = ToolboxUtil.makeNumberShadow(0);
     String encoderDirection = ToolboxUtil.makeTypedEnumShadow(hardwareType, "encoderDirection");
+    String errorDetectionType = ToolboxUtil.makeTypedEnumShadow(hardwareType, "errorDetectionType");
     String readData = ToolboxUtil.makeTypedEnumShadow(hardwareType, "readData");
     String goBildaOdometryPods = ToolboxUtil.makeTypedEnumShadow(hardwareType, "goBildaOdometryPods");
     String distanceUnit = ToolboxUtil.makeTypedEnumShadow("navigation", "distanceUnit");
@@ -2558,6 +2569,7 @@ public class HardwareUtil {
     properties.put("Frequency", "Number");
     properties.put("DeviceStatus", "DeviceStatus");
     properties.put("Position", "Pose2D");
+    properties.put("Quaternion", "Quaternion");
     Map<String, String[]> setterValues = new HashMap<String, String[]>();
     setterValues.put("YawScalar", new String[] { zero });
     Map<String, String> enumBlocks = new HashMap<String, String>();
@@ -2634,7 +2646,42 @@ public class HardwareUtil {
     Map<String, String> getYOffsetArgs = new LinkedHashMap<String, String>();
     getYOffsetArgs.put("DISTANCE_UNIT", distanceUnit);
     functions.put("getYOffset", getYOffsetArgs);
+    Map<String, String> setErrorDetectionTypeArgs = new LinkedHashMap<String, String>();
+    setErrorDetectionTypeArgs.put("ERROR_DETECTION_TYPE", errorDetectionType);
+    functions.put("setErrorDetectionType", setErrorDetectionTypeArgs);
+    Map<String, String> getPitchArgs = new LinkedHashMap<String, String>();
+    getPitchArgs.put("ANGLE_UNIT", angleUnit);
+    functions.put("getPitch", getPitchArgs);
+    Map<String, String> getRollArgs = new LinkedHashMap<String, String>();
+    getRollArgs.put("ANGLE_UNIT", angleUnit);
+    functions.put("getRoll", getRollArgs);
     ToolboxUtil.addFunctions(xmlToolbox, hardwareType, identifier, functions);
+
+    GoBildaPinpointDriver.Register[] bulkReadScopeExample = new GoBildaPinpointDriver.Register[] {
+      GoBildaPinpointDriver.Register.X_POSITION,
+      GoBildaPinpointDriver.Register.Y_POSITION,
+      GoBildaPinpointDriver.Register.H_ORIENTATION,
+    };
+    xmlToolbox
+        .append("<block type=\"goBildaPinpoint_setBulkReadScope\" inline=\"false\">\n")
+        .append("  <mutation items=\"").append(bulkReadScopeExample.length).append("\"/>\n")
+        .append("  <field name=\"IDENTIFIER\">").append(identifier).append("</field>\n");
+    for (int i = 0; i < bulkReadScopeExample.length; i++) {
+      xmlToolbox
+          .append("  <value name=\"REGISTER").append(i).append("\">\n")
+          .append("    <block type=\"goBildaPinpoint_typedEnum_register\">\n")
+          .append("      <field name=\"REGISTER\">").append(bulkReadScopeExample[i]).append("</field>\n")
+          .append("    </block>\n")
+          .append("  </value>\n");
+    }
+    xmlToolbox
+        .append("</block>\n");
+    for (GoBildaPinpointDriver.Register register : GoBildaPinpointDriver.Register.values()) {
+        xmlToolbox
+            .append("<block type=\"goBildaPinpoint_typedEnum_register\">\n")
+            .append("  <field name=\"REGISTER\">").append(register).append("</field>\n")
+            .append("</block>\n");
+    }
   }
 
   /**

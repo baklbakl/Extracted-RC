@@ -23,6 +23,7 @@
 package com.qualcomm.hardware.gobilda;
 
 import static com.qualcomm.robotcore.util.TypeConversion.byteArrayToInt;
+import static com.qualcomm.robotcore.util.TypeConversion.intToByteArray;
 
 import com.qualcomm.hardware.lynx.LynxI2cDeviceSynch;
 import com.qualcomm.robotcore.hardware.I2cAddr;
@@ -30,16 +31,19 @@ import com.qualcomm.robotcore.hardware.I2cDeviceSynchDevice;
 import com.qualcomm.robotcore.hardware.I2cDeviceSynchSimple;
 import com.qualcomm.robotcore.hardware.configuration.annotations.DeviceProperties;
 import com.qualcomm.robotcore.hardware.configuration.annotations.I2cDeviceType;
-import com.qualcomm.robotcore.util.TypeConversion;
 
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.Pose2D;
+import org.firstinspires.ftc.robotcore.external.navigation.Quaternion;
 import org.firstinspires.ftc.robotcore.external.navigation.UnnormalizedAngleUnit;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Iterator;
+import java.util.stream.Stream;
 
 
 @I2cDeviceType
@@ -51,6 +55,8 @@ import java.util.Arrays;
 
 public class GoBildaPinpointDriver extends I2cDeviceSynchDevice<I2cDeviceSynchSimple> {
 
+    private int deviceID = 0;
+    private int deviceVersion = 0;
     private int deviceStatus = 0;
     private int loopTime = 0;
     private int xEncoderValue = 0;
@@ -61,9 +67,47 @@ public class GoBildaPinpointDriver extends I2cDeviceSynchDevice<I2cDeviceSynchSi
     private float xVelocity = 0;
     private float yVelocity = 0;
     private float hVelocity = 0;
+    private float mmPerTick = 0;
+    private float xPodOffset = 0;
+    private float yPodOffset = 0;
+    private float yawScalar = 0;
+    private float quaternionW = 0;
+    private float quaternionX = 0;
+    private float quaternionY = 0;
+    private float quaternionZ = 0;
+    private float pitch = 0;
+    private float roll = 0;
+
+    private Register[] bulkReadScope = {
+            Register.DEVICE_STATUS,
+            Register.LOOP_TIME,
+            Register.X_ENCODER_VALUE,
+            Register.Y_ENCODER_VALUE,
+            Register.X_POSITION,
+            Register.Y_POSITION,
+            Register.H_ORIENTATION,
+            Register.X_VELOCITY,
+            Register.Y_VELOCITY,
+            Register.H_VELOCITY
+    };
+
+    public enum ErrorDetectionType {
+        NONE,
+        CRC,
+        LOCAL_TEST,
+    }
+
+    private ErrorDetectionType errorDetectionType = ErrorDetectionType.LOCAL_TEST;
+
 
     private static final float goBILDA_SWINGARM_POD = 13.26291192f; //ticks-per-mm for the goBILDA Swingarm Pod
     private static final float goBILDA_4_BAR_POD = 19.89436789f; //ticks-per-mm for the goBILDA 4-Bar Pod
+
+    private final int CRC_SIZE = 1;
+
+    private final byte CRC_INITIAL_VALUE = (byte) 0x90;
+    private final byte CRC_POLYNOMIAL_VALUE = (byte) 0x31;
+    private final byte CRC_FINAL_XOR_VALUE = (byte) 0x00;
 
     //i2c address of the device
     private static final byte DEFAULT_ADDRESS = 0x31;
@@ -92,32 +136,56 @@ public class GoBildaPinpointDriver extends I2cDeviceSynchDevice<I2cDeviceSynchSi
         return "goBILDA® Pinpoint Odometry Computer";
     }
 
+    /**
+     * Captures the length of each type of register used on the device. Aside from BULK_READ all registers are 4 bytes long
+     */
+    private enum RegisterType {
+        INT32(4),
+        FLOAT(4),
+        GENERIC(4),
+        BULK(40);
+
+        private final int length;
+
+        RegisterType(int length) {
+            this.length = length;
+        }
+    }
 
     //Register map of the i2c device
-    private enum Register {
-        DEVICE_ID(1),
-        DEVICE_VERSION(2),
-        DEVICE_STATUS(3),
-        DEVICE_CONTROL(4),
-        LOOP_TIME(5),
-        X_ENCODER_VALUE(6),
-        Y_ENCODER_VALUE(7),
-        X_POSITION(8),
-        Y_POSITION(9),
-        H_ORIENTATION(10),
-        X_VELOCITY(11),
-        Y_VELOCITY(12),
-        H_VELOCITY(13),
-        TICKS_PER_MM(14),
-        X_POD_OFFSET(15),
-        Y_POD_OFFSET(16),
-        YAW_SCALAR(17),
-        BULK_READ(18);
+    public enum Register {
+        DEVICE_ID(1, RegisterType.INT32),
+        DEVICE_VERSION(2, RegisterType.INT32),
+        DEVICE_STATUS(3, RegisterType.INT32),
+        DEVICE_CONTROL(4, RegisterType.INT32),
+        LOOP_TIME(5, RegisterType.INT32),
+        X_ENCODER_VALUE(6, RegisterType.INT32),
+        Y_ENCODER_VALUE(7, RegisterType.INT32),
+        X_POSITION(8, RegisterType.FLOAT),
+        Y_POSITION(9, RegisterType.FLOAT),
+        H_ORIENTATION(10, RegisterType.FLOAT),
+        X_VELOCITY(11, RegisterType.FLOAT),
+        Y_VELOCITY(12, RegisterType.FLOAT),
+        H_VELOCITY(13, RegisterType.FLOAT),
+        MM_PER_TICK(14, RegisterType.FLOAT),
+        X_POD_OFFSET(15, RegisterType.FLOAT),
+        Y_POD_OFFSET(16, RegisterType.FLOAT),
+        YAW_SCALAR(17, RegisterType.FLOAT),
+        BULK_READ(18, RegisterType.BULK),
+        QUATERNION_W(19, RegisterType.FLOAT),
+        QUATERNION_X(20, RegisterType.FLOAT),
+        QUATERNION_Y(21, RegisterType.FLOAT),
+        QUATERNION_Z(22, RegisterType.FLOAT),
+        PITCH(23, RegisterType.FLOAT),
+        ROLL(24, RegisterType.FLOAT),
+        SET_BULK_READ(25, RegisterType.INT32);
 
         private final int bVal;
+        private final RegisterType registerType;
 
-        Register(int bVal) {
+        Register(int bVal, RegisterType registerType) {
             this.bVal = bVal;
+            this.registerType = registerType;
         }
     }
 
@@ -180,7 +248,7 @@ public class GoBildaPinpointDriver extends I2cDeviceSynchDevice<I2cDeviceSynchSi
      * @param i   the integer to write to the register
      */
     private void writeInt(final Register reg, int i) {
-        deviceClient.write(reg.bVal, TypeConversion.intToByteArray(i, ByteOrder.LITTLE_ENDIAN));
+        deviceClient.write(reg.bVal, intToByteArray(i, ByteOrder.LITTLE_ENDIAN));
     }
 
     /**
@@ -281,6 +349,169 @@ public class GoBildaPinpointDriver extends I2cDeviceSynchDevice<I2cDeviceSynchSi
     }
 
     /**
+     * Checks to see if the register passed in is in the bulkReadScope
+     *
+     * @param register register to check
+     * @return true if not in bulk read.
+     */
+    private boolean registerNotInBulkRead(Register register) {
+        return !Arrays.asList(bulkReadScope).contains(register);
+    }
+
+    /**
+     * Saves either an int or a float to the private variable associated to a register.
+     *
+     * @param register to save data from
+     * @param dataI    the integer to write, if applicable
+     * @param dataF    the float to write, if applicable
+     */
+    private void saveData(Register register, int dataI, float dataF) {
+        final int positionThreshold = 5000; //more than one FTC field in mm
+        final int headingThreshold = 120; //About 20 full rotations in Radians
+        final int velocityThreshold = 10000; //10k mm/sec is faster than an FTC robot should be going...
+        final int headingVelocityThreshold = 120; //About 20 rotations per second
+
+        switch (register) {
+            case DEVICE_ID:
+                deviceID = dataI;
+                break;
+            case DEVICE_VERSION:
+                deviceVersion = dataI;
+                break;
+            case DEVICE_STATUS:
+                deviceStatus = dataI;
+                break;
+            case LOOP_TIME:
+                loopTime = dataI;
+                break;
+            case X_ENCODER_VALUE:
+                xEncoderValue = dataI;
+                break;
+            case Y_ENCODER_VALUE:
+                yEncoderValue = dataI;
+                break;
+            case X_POSITION:
+                if (errorDetectionType == ErrorDetectionType.LOCAL_TEST) {
+                    dataF = isPositionCorrupt(xPosition, dataF, positionThreshold, false);
+                }
+                xPosition = dataF;
+                break;
+            case Y_POSITION:
+                if (errorDetectionType == ErrorDetectionType.LOCAL_TEST) {
+                    dataF = isPositionCorrupt(yPosition, dataF, positionThreshold, false);
+                }
+                yPosition = dataF;
+                break;
+            case H_ORIENTATION:
+                if (errorDetectionType == ErrorDetectionType.LOCAL_TEST) {
+                    dataF = isPositionCorrupt(hOrientation, dataF, headingThreshold, false);
+                }
+                hOrientation = dataF;
+                break;
+            case X_VELOCITY:
+                if (errorDetectionType == ErrorDetectionType.LOCAL_TEST) {
+                    dataF = isVelocityCorrupt(xVelocity, dataF, velocityThreshold, false);
+                }
+                xVelocity = dataF;
+                break;
+            case Y_VELOCITY:
+                if (errorDetectionType == ErrorDetectionType.LOCAL_TEST) {
+                    dataF = isVelocityCorrupt(yVelocity, dataF, velocityThreshold, false);
+                }
+                yVelocity = dataF;
+                break;
+            case H_VELOCITY:
+                if (errorDetectionType == ErrorDetectionType.LOCAL_TEST) {
+                    dataF = isVelocityCorrupt(hVelocity, dataF, headingVelocityThreshold, false);
+                }
+                hVelocity = dataF;
+                break;
+            case MM_PER_TICK:
+                mmPerTick = dataF;
+                break;
+            case X_POD_OFFSET:
+                xPodOffset = dataF;
+                break;
+            case Y_POD_OFFSET:
+                yPodOffset = dataF;
+                break;
+            case YAW_SCALAR:
+                yawScalar = dataF;
+                break;
+            case QUATERNION_W:
+                quaternionW = dataF;
+                break;
+            case QUATERNION_X:
+                quaternionX = dataF;
+                break;
+            case QUATERNION_Y:
+                quaternionY = dataF;
+                break;
+            case QUATERNION_Z:
+                quaternionZ = dataF;
+                break;
+            case PITCH:
+                pitch = dataF;
+                break;
+            case ROLL:
+                roll = dataF;
+                break;
+        }
+    }
+
+    /**
+     * checks a given byteArray[] for a valid CRC data signature by comparing a calculated CRC to the one received in the read.
+     *
+     * @param byteArray    data to validate.
+     * @param registerType The kind of register validated. Can be FLOAT, INT32, or BULK.
+     * @return true if CRC validates the data. False otherwise.
+     */
+
+    private boolean checkCRC(byte[] byteArray, RegisterType registerType) {
+        if (registerType == RegisterType.BULK) {
+            int readLength = bulkReadScope.length * RegisterType.GENERIC.length;
+            if (computeCRC8(Arrays.copyOfRange(byteArray, 0, readLength)) == byteArray[(readLength + CRC_SIZE) - 1]) {
+                return true;
+            } else {
+                deviceStatus = DeviceStatus.FAULT_BAD_READ.status;
+                return false;
+            }
+        }
+
+        if (byteArray.length > RegisterType.GENERIC.length) {
+            if (computeCRC8(Arrays.copyOfRange(byteArray, 0, RegisterType.GENERIC.length)) == byteArray[(RegisterType.GENERIC.length + CRC_SIZE) - 1]) {
+                return true;
+            } else {
+                deviceStatus = DeviceStatus.FAULT_BAD_READ.status;
+                return false;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Computes the correct CRC8 for a byteArray.
+     *
+     * @param byteArray data to check
+     * @return byte to compare against received CRC.
+     */
+    private byte computeCRC8(byte[] byteArray) {
+        byte crc = CRC_INITIAL_VALUE;
+
+        for (byte b : byteArray) {
+            crc ^= b;
+            for (int i = 0; i < 8; i++) {
+                if ((crc & 0x80) != 0) {
+                    crc = (byte) ((crc << 1) ^ CRC_POLYNOMIAL_VALUE);
+                } else {
+                    crc <<= 1;
+                }
+            }
+        }
+        return (byte) (crc ^ CRC_FINAL_XOR_VALUE);
+    }
+
+    /**
      * Confirm that the number received is a number, and does not include a change above the threshold
      *
      * @param oldValue   the reading from the previous cycle
@@ -310,9 +541,9 @@ public class GoBildaPinpointDriver extends I2cDeviceSynchDevice<I2cDeviceSynchSi
      * @param threshold the velocity allowed to be reported
      * @return newValue if the velocity is good, oldValue otherwise
      */
-    private Float isVelocityCorrupt(float oldValue, float newValue, int threshold) {
-        boolean isCorrupt = Float.isNaN(newValue) || Math.abs(newValue) > threshold;
-        boolean noData = (loopTime <= 1);
+    private Float isVelocityCorrupt(float oldValue, float newValue, int threshold, boolean bulkUpdate) {
+        boolean noData = bulkUpdate && (loopTime <= 1);
+        boolean isCorrupt = noData || Float.isNaN(newValue) || Math.abs(newValue) > threshold;
 
         if (!isCorrupt) {
             return newValue;
@@ -323,9 +554,42 @@ public class GoBildaPinpointDriver extends I2cDeviceSynchDevice<I2cDeviceSynchSi
     }
 
     /**
-     * Call this once per loop to read new data from the Odometry Computer. Data will only update once this is called.
+     * Reads the BULK_READ register depending on how the bulkReadScope is configured and saves data to local variables.
+     * if CRC is enabled, and a bad CRC is detected on the BulkRead, then no data will be saved.
      */
-    public void update() {
+    private void flexBulkRead() {
+        byte[] bArr;
+
+        if (errorDetectionType == ErrorDetectionType.CRC) {
+            bArr = deviceClient.read(Register.BULK_READ.bVal, (bulkReadScope.length * RegisterType.GENERIC.length) + CRC_SIZE);
+            if (!checkCRC(bArr, RegisterType.BULK)) {
+                return;
+            }
+        } else {
+            bArr = deviceClient.read(Register.BULK_READ.bVal, (bulkReadScope.length * RegisterType.GENERIC.length));
+        }
+
+        for (int i = 0; i < bulkReadScope.length; i++) {
+            int index = i * RegisterType.GENERIC.length;
+            switch (bulkReadScope[i].registerType) {
+                case INT32:
+                    int dataI = byteArrayToInt(Arrays.copyOfRange(bArr, index, index + bulkReadScope[i].registerType.length), ByteOrder.LITTLE_ENDIAN);
+                    saveData(bulkReadScope[i], dataI, 0);
+                    break;
+                case FLOAT:
+                    float dataF = byteArrayToFloat(Arrays.copyOfRange(bArr, index, index + bulkReadScope[i].registerType.length), ByteOrder.LITTLE_ENDIAN);
+                    saveData(bulkReadScope[i], 0, dataF);
+                    break;
+            }
+        }
+    }
+
+    /**
+     * For devices with version 1 or version 2 firmware, this reads a fixed length BULK_READ register. <br>
+     * A warning is thrown if CRC is requested as CRC was not enabled on V1 or V2 devices.
+     */
+    private void fixedBulkRead() {
+
         final int positionThreshold = 5000; //more than one FTC field in mm
         final int headingThreshold = 120; //About 20 full rotations in Radians
         final int velocityThreshold = 10000; //10k mm/sec is faster than an FTC robot should be going...
@@ -350,17 +614,69 @@ public class GoBildaPinpointDriver extends I2cDeviceSynchDevice<I2cDeviceSynchSi
         yVelocity = byteArrayToFloat(Arrays.copyOfRange(bArr, 32, 36), ByteOrder.LITTLE_ENDIAN);
         hVelocity = byteArrayToFloat(Arrays.copyOfRange(bArr, 36, 40), ByteOrder.LITTLE_ENDIAN);
 
-        /*
-         * Check to see if any of the floats we have received from the device are NaN or are too large
-         * if they are, we return the previously read value and alert the user via the DeviceStatus Enum.
-         */
-        xPosition = isPositionCorrupt(oldPosX, xPosition, positionThreshold, true);
-        yPosition = isPositionCorrupt(oldPosY, yPosition, positionThreshold, true);
-        hOrientation = isPositionCorrupt(oldPosH, hOrientation, headingThreshold, true);
-        xVelocity = isVelocityCorrupt(oldVelX, xVelocity, velocityThreshold);
-        yVelocity = isVelocityCorrupt(oldVelY, yVelocity, velocityThreshold);
-        hVelocity = isVelocityCorrupt(oldVelH, hVelocity, headingVelocityThreshold);
+        switch (errorDetectionType) {
+            case CRC:
+                throw new RuntimeException("CRC Error Handling Not Supported by this Firmware");
+            case LOCAL_TEST:
+                /*
+                 * Check to see if any of the floats we have received from the device are NaN or are too large
+                 * if they are, we return the previously read value and alert the user via the DeviceStatus Enum.
+                 */
+                xPosition = isPositionCorrupt(oldPosX, xPosition, positionThreshold, true);
+                yPosition = isPositionCorrupt(oldPosY, yPosition, positionThreshold, true);
+                hOrientation = isPositionCorrupt(oldPosH, hOrientation, headingThreshold, true);
+                xVelocity = isVelocityCorrupt(oldVelX, xVelocity, velocityThreshold, true);
+                yVelocity = isVelocityCorrupt(oldVelY, yVelocity, velocityThreshold, true);
+                hVelocity = isVelocityCorrupt(oldVelH, hVelocity, headingVelocityThreshold, true);
+                break;
+        }
+    }
 
+    /**
+     * Reads a register and saves the data found there to the local variable. Uses either CRC or Local error detection.
+     *
+     * @param register register to read
+     */
+    private void readRegister(Register register) {
+        boolean checkCRC = (errorDetectionType == ErrorDetectionType.CRC);
+
+        byte[] temp = deviceClient.read(register.bVal, RegisterType.GENERIC.length + CRC_SIZE);
+
+        switch (register.registerType) {
+            case INT32:
+                if (checkCRC(temp, RegisterType.INT32) || !checkCRC) {
+                    saveData(register, byteArrayToInt(Arrays.copyOfRange(temp, 0, RegisterType.INT32.length), ByteOrder.LITTLE_ENDIAN), 0);
+                } else {
+                    deviceStatus = DeviceStatus.FAULT_BAD_READ.status;
+                }
+                break;
+            case FLOAT:
+                if (checkCRC(temp, RegisterType.FLOAT) || !checkCRC) {
+                    saveData(register, 0, byteArrayToFloat(Arrays.copyOfRange(temp, 0, RegisterType.FLOAT.length), ByteOrder.LITTLE_ENDIAN));
+                } else {
+                    deviceStatus = DeviceStatus.FAULT_BAD_READ.status;
+                }
+                break;
+            case BULK:
+                update();
+                break;
+        }
+    }
+
+    /**
+     * Call this once per loop to read new data from the Odometry Computer. Data will only update once this is called.
+     */
+    public void update() {
+        if (deviceVersion == 0) {
+            getDeviceVersion();  // Makes sure device version has been read
+        }
+
+        if (deviceVersion == 1 || deviceVersion == 2) {
+            fixedBulkRead();
+        }
+        if (deviceVersion >= 3) {
+            flexBulkRead();
+        }
     }
 
     /**
@@ -384,6 +700,50 @@ public class GoBildaPinpointDriver extends I2cDeviceSynchDevice<I2cDeviceSynchSi
                 deviceStatus = DeviceStatus.READY.status;
             }
         }
+    }
+
+    /**
+     * Only supported on V3 firmware and above. This configures the registers that are read in bulk
+     * when .update() is called. Use this to minimize read times based on your unique application.
+     *
+     * @param registers An array of registers, add registers that you need data from frequently.
+     */
+    public void setBulkReadScope(Register... registers) {
+
+        if (deviceVersion == 0) {
+            deviceVersion = readInt(Register.DEVICE_VERSION);
+        }
+        if (deviceVersion == 1 || deviceVersion == 2) {
+            throw new RuntimeException(".setBulkReadScope is not supported by this device firmware.");
+        }
+        if (deviceVersion >= 3) {
+            bulkReadScope = registers.clone();
+
+            Stream<Register> reg = Arrays.stream(registers).distinct();
+            ArrayList<Byte> arrayList = new ArrayList<>(registers.length);
+
+            Iterator<Register> iter = reg.iterator();
+            while (iter.hasNext()) {
+                arrayList.add((byte) iter.next().bVal);
+            }
+
+            byte[] arr = new byte[arrayList.size()];
+            for (int i = 0; i < arrayList.size(); i++) {
+                arr[i] = arrayList.get(i);
+            }
+            writeByteArray(Register.SET_BULK_READ, arr); //write all registers sequentially
+        }
+    }
+
+    /**
+     * The kind of error correction used on the I²C communication from the device. <br><br>
+     * NONE: This does not check the data, and passes it directly to the user. <br>
+     * CRC: This uses CRC8 error detection to catch incorrect reads. - Only supported by devices with V3 firmware or newer.<br>
+     * LOCAL_TEST: "Controller only" validation that ensures that the data is !NAN, is not all zeros, and is a reasonable number.
+     * This is faster than CRC but may not catch every erroneous read.<br>
+     */
+    public void setErrorDetectionType(ErrorDetectionType e) {
+        errorDetectionType = e;
     }
 
     /**
@@ -461,11 +821,11 @@ public class GoBildaPinpointDriver extends I2cDeviceSynchDevice<I2cDeviceSynchSi
      * You can find this number by dividing the counts-per-revolution of your encoder by the circumference of the wheel.
      *
      * @param ticksPerUnit should be somewhere between 10 ticks/mm and 100 ticks/mm a goBILDA Swingarm pod is ~13.26291192
-     * @param distanceUnit   unit used for distance
+     * @param distanceUnit unit used for distance
      */
     public void setEncoderResolution(double ticksPerUnit, DistanceUnit distanceUnit) {
-        double resolution = distanceUnit.toMm(ticksPerUnit);
-        writeByteArray(Register.TICKS_PER_MM, (floatToByteArray((float) resolution, ByteOrder.LITTLE_ENDIAN)));
+        double resolution = 1.0 / distanceUnit.toMm(1.0 / ticksPerUnit);
+        writeByteArray(Register.MM_PER_TICK, (floatToByteArray((float) resolution, ByteOrder.LITTLE_ENDIAN)));
     }
 
     /**
@@ -553,21 +913,30 @@ public class GoBildaPinpointDriver extends I2cDeviceSynchDevice<I2cDeviceSynchSi
      * @return 1 if device is functional.
      */
     public int getDeviceID() {
-        return readInt(Register.DEVICE_ID);
+        if (registerNotInBulkRead(Register.DEVICE_ID)) {
+            readRegister(Register.DEVICE_ID);
+        }
+        return deviceID;
     }
 
     /**
      * @return the firmware version of the Odometry Computer
      */
     public int getDeviceVersion() {
-        return readInt(Register.DEVICE_VERSION);
+        if (registerNotInBulkRead(Register.DEVICE_VERSION)) {
+            readRegister(Register.DEVICE_VERSION);
+        }
+        return deviceVersion;
     }
 
     /**
      * @return a scalar that the IMU measured heading is multiplied by.
      */
     public float getYawScalar() {
-        return readFloat(Register.YAW_SCALAR);
+        if (registerNotInBulkRead(Register.YAW_SCALAR)) {
+            readRegister(Register.YAW_SCALAR);
+        }
+        return yawScalar;
     }
 
     /**
@@ -615,6 +984,9 @@ public class GoBildaPinpointDriver extends I2cDeviceSynchDevice<I2cDeviceSynchSi
      * @return the raw value of the X (forward) encoder in ticks
      */
     public int getEncoderX() {
+        if (registerNotInBulkRead(Register.X_ENCODER_VALUE)) {
+            readRegister(Register.X_ENCODER_VALUE);
+        }
         return xEncoderValue;
     }
 
@@ -622,6 +994,9 @@ public class GoBildaPinpointDriver extends I2cDeviceSynchDevice<I2cDeviceSynchSi
      * @return the raw value of the Y (strafe) encoder in ticks
      */
     public int getEncoderY() {
+        if (registerNotInBulkRead(Register.Y_ENCODER_VALUE)) {
+            readRegister(Register.Y_ENCODER_VALUE);
+        }
         return yEncoderValue;
     }
 
@@ -630,6 +1005,9 @@ public class GoBildaPinpointDriver extends I2cDeviceSynchDevice<I2cDeviceSynchSi
      * @return the estimated X (forward) position of the robot in specified unit
      */
     public double getPosX(DistanceUnit distanceUnit) {
+        if (registerNotInBulkRead(Register.X_POSITION)) {
+            readRegister(Register.X_POSITION);
+        }
         return distanceUnit.fromMm(xPosition);
     }
 
@@ -638,6 +1016,9 @@ public class GoBildaPinpointDriver extends I2cDeviceSynchDevice<I2cDeviceSynchSi
      * @return the estimated Y (Strafe) position of the robot in specified unit
      */
     public double getPosY(DistanceUnit distanceUnit) {
+        if (registerNotInBulkRead(Register.Y_POSITION)) {
+            readRegister(Register.Y_POSITION);
+        }
         return distanceUnit.fromMm(yPosition);
     }
 
@@ -646,6 +1027,9 @@ public class GoBildaPinpointDriver extends I2cDeviceSynchDevice<I2cDeviceSynchSi
      * normalized heading is wrapped from -180°, to 180°.
      */
     public double getHeading(AngleUnit angleUnit) {
+        if (registerNotInBulkRead(Register.H_ORIENTATION)) {
+            readRegister(Register.H_ORIENTATION);
+        }
         return angleUnit.fromRadians(hOrientation);
     }
 
@@ -655,6 +1039,9 @@ public class GoBildaPinpointDriver extends I2cDeviceSynchDevice<I2cDeviceSynchSi
      * multiple rotations.
      */
     public double getHeading(UnnormalizedAngleUnit unnormalizedAngleUnit) {
+        if (registerNotInBulkRead(Register.H_ORIENTATION)) {
+            readRegister(Register.H_ORIENTATION);
+        }
         return unnormalizedAngleUnit.fromRadians(hOrientation);
     }
 
@@ -662,6 +1049,9 @@ public class GoBildaPinpointDriver extends I2cDeviceSynchDevice<I2cDeviceSynchSi
      * @return the estimated X (forward) velocity of the robot in specified unit/sec
      */
     public double getVelX(DistanceUnit distanceUnit) {
+        if (registerNotInBulkRead(Register.X_VELOCITY)) {
+            readRegister(Register.X_VELOCITY);
+        }
         return distanceUnit.fromMm(xVelocity);
     }
 
@@ -669,6 +1059,9 @@ public class GoBildaPinpointDriver extends I2cDeviceSynchDevice<I2cDeviceSynchSi
      * @return the estimated Y (strafe) velocity of the robot in specified unit/sec
      */
     public double getVelY(DistanceUnit distanceUnit) {
+        if (registerNotInBulkRead(Register.Y_VELOCITY)) {
+            readRegister(Register.Y_VELOCITY);
+        }
         return distanceUnit.fromMm(yVelocity);
     }
 
@@ -676,6 +1069,9 @@ public class GoBildaPinpointDriver extends I2cDeviceSynchDevice<I2cDeviceSynchSi
      * @return the estimated H (heading) velocity of the robot in specified unit/sec
      */
     public double getHeadingVelocity(UnnormalizedAngleUnit unnormalizedAngleUnit) {
+        if (registerNotInBulkRead(Register.H_VELOCITY)) {
+            readRegister(Register.H_VELOCITY);
+        }
         return unnormalizedAngleUnit.fromRadians(hVelocity);
     }
 
@@ -685,7 +1081,10 @@ public class GoBildaPinpointDriver extends I2cDeviceSynchDevice<I2cDeviceSynchSi
      * @return the user-set offset for the X (forward) pod in specified unit
      */
     public float getXOffset(DistanceUnit distanceUnit) {
-        return (float) distanceUnit.fromMm(readFloat(Register.X_POD_OFFSET));
+        if (registerNotInBulkRead(Register.X_POD_OFFSET)) {
+            readRegister(Register.X_POD_OFFSET);
+        }
+        return (float) distanceUnit.fromMm(xPodOffset);
     }
 
     /**
@@ -694,22 +1093,90 @@ public class GoBildaPinpointDriver extends I2cDeviceSynchDevice<I2cDeviceSynchSi
      * @return the user-set offset for the Y (strafe) pod
      */
     public float getYOffset(DistanceUnit distanceUnit) {
-        return (float) distanceUnit.fromMm(readFloat(Register.Y_POD_OFFSET));
+        if (registerNotInBulkRead(Register.Y_POD_OFFSET)) {
+            readRegister(Register.Y_POD_OFFSET);
+        }
+        return (float) distanceUnit.fromMm(yPodOffset);
     }
 
     /**
      * @return a Pose2D containing the estimated position of the robot
      */
     public Pose2D getPosition() {
+        if (registerNotInBulkRead(Register.X_POSITION)) {
+            readRegister(Register.X_POSITION);
+        }
+        if (registerNotInBulkRead(Register.Y_POSITION)) {
+            readRegister(Register.Y_POSITION);
+        }
+        if (registerNotInBulkRead(Register.H_ORIENTATION)) {
+            readRegister(Register.H_ORIENTATION);
+        }
         return new Pose2D(DistanceUnit.MM,
                 xPosition,
                 yPosition,
                 AngleUnit.RADIANS,
                 AngleUnit.normalizeRadians(hOrientation));
     }
+
+    /**
+     * @return a Quaternion which describes the 3d orientation of the device.
+     */
+    public Quaternion getQuaternion() {
+        if (deviceVersion == 0) {
+            readInt(Register.DEVICE_VERSION);
+        }
+        if (deviceVersion == 1 || deviceVersion == 2) {
+            throw new RuntimeException("Quaternion output is not supported on this device firmware");
+        } else {
+            if (registerNotInBulkRead(Register.QUATERNION_W)) {
+                readRegister(Register.QUATERNION_W);
+            }
+            if (registerNotInBulkRead(Register.QUATERNION_X)) {
+                readRegister(Register.QUATERNION_X);
+            }
+            if (registerNotInBulkRead(Register.QUATERNION_Y)) {
+                readRegister(Register.QUATERNION_Y);
+            }
+            if (registerNotInBulkRead(Register.QUATERNION_Z)) {
+                readRegister(Register.QUATERNION_Z);
+            }
+            return new Quaternion(quaternionW, quaternionX, quaternionY, quaternionZ, 0);
+        }
+    }
+
+    /**
+     * @return the current pitch of the device in the specified AngleUnit.
+     */
+
+    public double getPitch(AngleUnit angleUnit) {
+        if (deviceVersion == 0) {
+            readInt(Register.DEVICE_VERSION);
+        }
+        if (deviceVersion == 1 || deviceVersion == 2) {
+            throw new RuntimeException("IMU Pitch output is not supported on this device firmware");
+        } else {
+            if (registerNotInBulkRead(Register.PITCH)) {
+                pitch = readFloat(Register.PITCH);
+            }
+            return angleUnit.fromRadians(pitch);
+        }
+    }
+
+    /**
+     * @return the current roll of the device in the specified AngleUnit.
+     */
+    public double getRoll(AngleUnit angleUnit) {
+        if (deviceVersion == 0) {
+            readInt(Register.DEVICE_VERSION);
+        }
+        if (deviceVersion == 1 || deviceVersion == 2) {
+            throw new RuntimeException("IMU Roll output is not supported on this device firmware");
+        } else {
+            if (registerNotInBulkRead(Register.ROLL)) {
+                roll = readFloat(Register.ROLL);
+            }
+            return angleUnit.fromRadians(roll);
+        }
+    }
 }
-
-
-
-
-

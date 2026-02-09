@@ -68,6 +68,8 @@ class GamepadStateChanges {
     protected ButtonStateMonitor options = new ButtonStateMonitor();
     protected ButtonStateMonitor touchpad = new ButtonStateMonitor();
     protected ButtonStateMonitor ps = new ButtonStateMonitor();
+    protected ButtonStateMonitor leftTrigger = new ButtonStateMonitor();
+    protected ButtonStateMonitor rightTrigger = new ButtonStateMonitor();
 
     protected class ButtonStateMonitor {
         private boolean lastPressed = false;
@@ -121,5 +123,7 @@ class GamepadStateChanges {
         options.update(gamepad.options);
         touchpad.update(gamepad.touchpad);
         ps.update(gamepad.ps);
+        leftTrigger.update(gamepad.left_trigger_pressed);
+        rightTrigger.update(gamepad.right_trigger_pressed);
     }
 }

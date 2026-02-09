@@ -21,12 +21,15 @@ import com.google.blocks.ftcrobotcontroller.hardware.HardwareItem;
 import com.qualcomm.hardware.gobilda.GoBildaPinpointDriver;
 import com.qualcomm.hardware.gobilda.GoBildaPinpointDriver.DeviceStatus;
 import com.qualcomm.hardware.gobilda.GoBildaPinpointDriver.EncoderDirection;
+import com.qualcomm.hardware.gobilda.GoBildaPinpointDriver.ErrorDetectionType;
 import com.qualcomm.hardware.gobilda.GoBildaPinpointDriver.GoBildaOdometryPods;
 import com.qualcomm.hardware.gobilda.GoBildaPinpointDriver.ReadData;
+import com.qualcomm.hardware.gobilda.GoBildaPinpointDriver.Register;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.Pose2D;
+import org.firstinspires.ftc.robotcore.external.navigation.Quaternion;
 import org.firstinspires.ftc.robotcore.external.navigation.UnnormalizedAngleUnit;
 
 /**
@@ -52,6 +55,14 @@ class GoBildaPinpointAccess extends HardwareAccess<GoBildaPinpointDriver> {
 
   private ReadData checkReadData(String readDataString) {
     return checkArg(readDataString, ReadData.class, "readData");
+  }
+
+  private ErrorDetectionType checkErrorDetectionType(String errorDetectionTypeString) {
+    return checkArg(errorDetectionTypeString, ErrorDetectionType.class, "errorDetectionType");
+  }
+
+  private Register checkRegister(String registerString) {
+    return checkArg(registerString, Register.class, "register");
   }
 
   @SuppressWarnings("unused")
@@ -579,6 +590,97 @@ class GoBildaPinpointAccess extends HardwareAccess<GoBildaPinpointDriver> {
       DistanceUnit distanceUnit = checkDistanceUnit(distanceUnitString);
       if (distanceUnit != null) {
         return goBildaPinpoint.getYOffset(distanceUnit);
+      }
+      return 0;
+    } catch (Throwable e) {
+      blocksOpMode.handleFatalException(e);
+      throw new AssertionError("impossible", e);
+    } finally {
+      endBlockExecution();
+    }
+  }
+
+  @SuppressWarnings("unused")
+  @JavascriptInterface
+  @Block(classes = {GoBildaPinpointDriver.class}, methodName = "setBulkReadScope")
+  public void setBulkReadScope(String json) {
+    try {
+      startBlockExecution(BlockType.GETTER, ".setBulkReadScope");
+      String[] registerStrings = fromJson(json, String[].class);
+      Register[] registers = new Register[registerStrings.length];
+      for (int i = 0; i < registers.length; i++) {
+        registers[i] = checkRegister(registerStrings[i]);
+      }
+      goBildaPinpoint.setBulkReadScope(registers);
+    } catch (Throwable e) {
+      blocksOpMode.handleFatalException(e);
+      throw new AssertionError("impossible", e);
+    } finally {
+      endBlockExecution();
+    }
+  }
+
+  @SuppressWarnings("unused")
+  @JavascriptInterface
+  @Block(classes = {GoBildaPinpointDriver.class}, methodName = "setErrorDetectionType")
+  public void setErrorDetectionType(String errorDetectionTypeString) {
+    try {
+      startBlockExecution(BlockType.FUNCTION, ".setErrorDetectionType");
+      ErrorDetectionType errorDetectionType = checkErrorDetectionType(errorDetectionTypeString);
+      if (errorDetectionType != null) {
+        goBildaPinpoint.setErrorDetectionType(errorDetectionType);
+      }
+    } catch (Throwable e) {
+      blocksOpMode.handleFatalException(e);
+      throw new AssertionError("impossible", e);
+    } finally {
+      endBlockExecution();
+    }
+  }
+
+  @SuppressWarnings("unused")
+  @JavascriptInterface
+  @Block(classes = {GoBildaPinpointDriver.class}, methodName = "getQuaternion")
+  public Quaternion getQuaternion() {
+    try {
+      startBlockExecution(BlockType.GETTER, ".Quaternion");
+      return goBildaPinpoint.getQuaternion();
+    } catch (Throwable e) {
+      blocksOpMode.handleFatalException(e);
+      throw new AssertionError("impossible", e);
+    } finally {
+      endBlockExecution();
+    }
+  }
+
+  @SuppressWarnings("unused")
+  @JavascriptInterface
+  @Block(classes = {GoBildaPinpointDriver.class}, methodName = "getPitch")
+  public double getPitch(String angleUnitString) {
+    try {
+      startBlockExecution(BlockType.FUNCTION, ".getPitch");
+      AngleUnit angleUnit = checkAngleUnit(angleUnitString);
+      if (angleUnit != null) {
+        return goBildaPinpoint.getPitch(angleUnit);
+      }
+      return 0;
+    } catch (Throwable e) {
+      blocksOpMode.handleFatalException(e);
+      throw new AssertionError("impossible", e);
+    } finally {
+      endBlockExecution();
+    }
+  }
+
+  @SuppressWarnings("unused")
+  @JavascriptInterface
+  @Block(classes = {GoBildaPinpointDriver.class}, methodName = "getRoll")
+  public double getRoll(String angleUnitString) {
+    try {
+      startBlockExecution(BlockType.FUNCTION, ".getRoll");
+      AngleUnit angleUnit = checkAngleUnit(angleUnitString);
+      if (angleUnit != null) {
+        return goBildaPinpoint.getRoll(angleUnit);
       }
       return 0;
     } catch (Throwable e) {

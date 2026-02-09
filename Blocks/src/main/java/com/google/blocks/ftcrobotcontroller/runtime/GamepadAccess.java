@@ -937,6 +937,60 @@ class GamepadAccess extends Access {
 
   @SuppressWarnings("unused")
   @JavascriptInterface
+  @Block(classes = {Gamepad.class}, fieldName = "left_trigger_pressed")
+  public boolean getLeftTriggerPressed() {
+    try {
+      startBlockExecution(BlockType.GETTER, ".LeftTriggerPressed");
+      if (gamepad != null) {
+        return gamepad.left_trigger_pressed;
+      }
+      return false;
+    } catch (Throwable e) {
+      blocksOpMode.handleFatalException(e);
+      throw new AssertionError("impossible", e);
+    } finally {
+      endBlockExecution();
+    }
+  }
+
+  @SuppressWarnings("unused")
+  @JavascriptInterface
+  @Block(classes = {Gamepad.class}, methodName = "leftTriggerWasPressed")
+  public boolean getLeftTriggerWasPressed() {
+    try {
+      startBlockExecution(BlockType.GETTER, ".LeftTriggerWasPressed");
+      if (gamepad != null) {
+        return gamepad.leftTriggerWasPressed();
+      }
+      return false;
+    } catch (Throwable e) {
+      blocksOpMode.handleFatalException(e);
+      throw new AssertionError("impossible", e);
+    } finally {
+      endBlockExecution();
+    }
+  }
+
+  @SuppressWarnings("unused")
+  @JavascriptInterface
+  @Block(classes = {Gamepad.class}, methodName = "leftTriggerWasReleased")
+  public boolean getLeftTriggerWasReleased() {
+    try {
+      startBlockExecution(BlockType.GETTER, ".LeftTriggerWasReleased");
+      if (gamepad != null) {
+        return gamepad.leftTriggerWasReleased();
+      }
+      return false;
+    } catch (Throwable e) {
+      blocksOpMode.handleFatalException(e);
+      throw new AssertionError("impossible", e);
+    } finally {
+      endBlockExecution();
+    }
+  }
+
+  @SuppressWarnings("unused")
+  @JavascriptInterface
   @Block(classes = {Gamepad.class}, fieldName = "right_trigger")
   public float getRightTrigger() {
     try {
@@ -945,6 +999,95 @@ class GamepadAccess extends Access {
         return gamepad.right_trigger;
       }
       return 0f;
+    } catch (Throwable e) {
+      blocksOpMode.handleFatalException(e);
+      throw new AssertionError("impossible", e);
+    } finally {
+      endBlockExecution();
+    }
+  }
+
+  @SuppressWarnings("unused")
+  @JavascriptInterface
+  @Block(classes = {Gamepad.class}, fieldName = "right_trigger_pressed")
+  public boolean getRightTriggerPressed() {
+    try {
+      startBlockExecution(BlockType.GETTER, ".RightTriggerPressed");
+      if (gamepad != null) {
+        return gamepad.right_trigger_pressed;
+      }
+      return false;
+    } catch (Throwable e) {
+      blocksOpMode.handleFatalException(e);
+      throw new AssertionError("impossible", e);
+    } finally {
+      endBlockExecution();
+    }
+  }
+
+  @SuppressWarnings("unused")
+  @JavascriptInterface
+  @Block(classes = {Gamepad.class}, methodName = "rightTriggerWasPressed")
+  public boolean getRightTriggerWasPressed() {
+    try {
+      startBlockExecution(BlockType.GETTER, ".RightTriggerWasPressed");
+      if (gamepad != null) {
+        return gamepad.rightTriggerWasPressed();
+      }
+      return false;
+    } catch (Throwable e) {
+      blocksOpMode.handleFatalException(e);
+      throw new AssertionError("impossible", e);
+    } finally {
+      endBlockExecution();
+    }
+  }
+
+  @SuppressWarnings("unused")
+  @JavascriptInterface
+  @Block(classes = {Gamepad.class}, methodName = "rightTriggerWasReleased")
+  public boolean getRightTriggerWasReleased() {
+    try {
+      startBlockExecution(BlockType.GETTER, ".RightTriggerWasReleased");
+      if (gamepad != null) {
+        return gamepad.rightTriggerWasReleased();
+      }
+      return false;
+    } catch (Throwable e) {
+      blocksOpMode.handleFatalException(e);
+      throw new AssertionError("impossible", e);
+    } finally {
+      endBlockExecution();
+    }
+  }
+
+  @SuppressWarnings("unused")
+  @JavascriptInterface
+  @Block(classes = {Gamepad.class}, methodName = "getTriggerThreshold")
+  public float getTriggerThreshold() {
+    try {
+      startBlockExecution(BlockType.GETTER, ".TriggerThreshold");
+      if (gamepad != null) {
+        return gamepad.getTriggerThreshold();
+      }
+      return 0f;
+    } catch (Throwable e) {
+      blocksOpMode.handleFatalException(e);
+      throw new AssertionError("impossible", e);
+    } finally {
+      endBlockExecution();
+    }
+  }
+
+  @SuppressWarnings("unused")
+  @JavascriptInterface
+  @Block(classes = {Gamepad.class}, methodName = "setTriggerThreshold")
+  public void setTriggerThreshold(float threshold) {
+    try {
+      startBlockExecution(BlockType.SETTER, ".TriggerThreshold");
+      if (gamepad != null) {
+        gamepad.setTriggerThreshold(threshold);
+      }
     } catch (Throwable e) {
       blocksOpMode.handleFatalException(e);
       throw new AssertionError("impossible", e);

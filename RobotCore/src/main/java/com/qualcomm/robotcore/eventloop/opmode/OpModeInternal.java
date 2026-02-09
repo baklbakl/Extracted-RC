@@ -178,6 +178,8 @@ abstract class OpModeInternal {
 
         gamepad1.resetEdgeDetection();
         gamepad2.resetEdgeDetection();
+        gamepad1.setTriggerThreshold(Gamepad.DEFAULT_TRIGGER_THRESHOLD);
+        gamepad2.setTriggerThreshold(Gamepad.DEFAULT_TRIGGER_THRESHOLD);
 
         executorService.execute(() -> ThreadPool.logThreadLifeCycle("OpModeThread", () -> {
             try {

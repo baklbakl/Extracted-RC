@@ -79,6 +79,7 @@ public class OnBotJavaProgrammingMode implements ProgrammingMode {
     public static final String URI_FILE_GET_TREE = URI_JAVA_PREFIX + "/file/all";
     public static final String URI_FILE_NEW = URI_JAVA_PREFIX + "/file/new";
     public static final String URI_FILE_SAVE = URI_JAVA_PREFIX + "/file/save";
+    public static final String URI_FILE_RENAME = URI_JAVA_PREFIX + "/file/rename";
     public static final String URI_FILE_TEMPLATES = URI_JAVA_PREFIX + "/file/templates";
     public static final String URI_FILE_TREE = URI_JAVA_PREFIX + "/file/tree";
     public static final String URI_FILE_UPLOAD = URI_JAVA_PREFIX + "/file/upload";
@@ -108,7 +109,7 @@ public class OnBotJavaProgrammingMode implements ProgrammingMode {
 
     public void register(ProgrammingModeManager manager) {
         List<WebHandler> webHandlerList = Arrays.asList(new Clean(), new Rearm(), new ResetOnBotJava(), new Settings(), new SettingsReset(), new FetchBuildStatus(), new FetchLog(), new LaunchBuild(), new WaitForBuild(),
-                new CopyFile(), new DeleteFile(), new DownloadFile(), new FetchFileContents(), new FetchSourceTree(), new FetchFileTemplates(), new FetchFileTree(), new NewFile(), new SaveFile(), new UploadFiles(), new FetchJavaScriptSettings(), new FetchAutocompleteJavaScript());
+                new CopyFile(), new DeleteFile(), new DownloadFile(), new FetchFileContents(), new FetchSourceTree(), new FetchFileTemplates(), new FetchFileTree(), new NewFile(), new SaveFile(), new RenameFile(), new UploadFiles(), new FetchJavaScriptSettings(), new FetchAutocompleteJavaScript());
 
         try {
             for (WebHandler webHandler : webHandlerList) {

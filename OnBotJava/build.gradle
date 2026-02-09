@@ -1,31 +1,13 @@
 apply plugin: 'com.android.library'
-
-android.buildFeatures.buildConfig true
+apply from: '../build.androidVersionCommon.gradle'
 
 android {
-
     namespace 'com.google.blocks.ftcrobotcontroller.onbotjava'
 
-    compileSdkVersion 29
-
     defaultConfig {
-        minSdkVersion 23
-        targetSdkVersion 28
-        versionCode 70
-        versionName "14.1"
+        versionCode 75
+        versionName "15.1"
     }
-
-    buildTypes {
-        release {
-            minifyEnabled false
-            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
-        }
-    }
-    compileOptions {
-        sourceCompatibility JavaVersion.VERSION_1_8
-        targetCompatibility JavaVersion.VERSION_1_8
-    }
-
 }
 
 dependencies {

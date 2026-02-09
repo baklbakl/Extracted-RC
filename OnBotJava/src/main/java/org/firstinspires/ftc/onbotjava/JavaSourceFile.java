@@ -110,6 +110,8 @@ public class JavaSourceFile {
         String oldClassName = sourceFile.getName();
         if (oldClassName.endsWith(OnBotJavaFileSystemUtils.EXT_JAVA_FILE)) {
             oldClassName = oldClassName.substring(0, oldClassName.length() - OnBotJavaFileSystemUtils.EXT_JAVA_FILE.length());
+        } if (oldClassName.endsWith(OnBotJavaFileSystemUtils.EXT_JAVA_FILE + OnBotJavaFileSystemUtils.EXT_TEMP_FILE)) {
+            oldClassName = oldClassName.substring(0, oldClassName.length() - (OnBotJavaFileSystemUtils.EXT_JAVA_FILE + OnBotJavaFileSystemUtils.EXT_TEMP_FILE).length());
         } else if (oldClassName.contains(".")) {
             oldClassName = oldClassName.substring(0, oldClassName.lastIndexOf("."));
         }

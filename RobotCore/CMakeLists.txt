@@ -3,15 +3,19 @@
 # your build.
 
 cmake_minimum_required(VERSION 3.4.1)
+project(RobotCore C CXX)
+
+set(BOTH_FLAGS "-Wno-invalid-offsetof")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${BOTH_FLAGS}")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${BOTH_FLAGS}")
 
 # Specifies a library name, specifies whether the library is STATIC or
 # SHARED, and provides relative paths to the source code. You can
 # define multiple libraries by adding multiple add_library() commands,
 # and CMake builds them for you. When you build your app, Gradle
 # automatically packages shared libraries with your APK.
-
 add_library( # Specifies the name of the library.
-        RobotCore
+        ${PROJECT_NAME}
 
         # Sets the library as a shared library.
         SHARED
@@ -56,14 +60,11 @@ add_library( # Specifies the name of the library.
         src/main/cpp/libusb/os/linux_netlink.c)
 
 # Specifies a path to native header files.
-include_directories(
+target_include_directories(${PROJECT_NAME} PUBLIC
         src/main/cpp/libusb
         src/main/cpp/libusb/android
         src/main/cpp/libuvc/include
         src/main/cpp/include)
 
 # linking libs
-target_link_libraries(
-        RobotCore
-        log
-        jnigraphics)
+target_link_libraries(${PROJECT_NAME} log jnigraphics)

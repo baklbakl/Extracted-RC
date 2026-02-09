@@ -1,0 +1,35 @@
+//Common config to all projects
+android {
+    compileSdkVersion 30
+
+    defaultConfig {
+        minSdkVersion 24
+        targetSdkVersion 28
+    }
+
+    buildFeatures.buildConfig true
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+
+    // Up to date with FtcRobotController build.common.gradle as of 2026/2/8
+    ndkVersion '21.3.6528147'
+
+    // http://google.github.io/android-gradle-dsl/current/com.android.build.gradle.internal.dsl.BuildType.html
+    buildTypes {
+        release {
+            ndk {
+                abiFilters "armeabi-v7a", "arm64-v8a"
+            }
+        }
+        debug {
+            debuggable true
+            jniDebuggable true
+            ndk {
+                abiFilters "armeabi-v7a", "arm64-v8a"
+            }
+        }
+    }
+}

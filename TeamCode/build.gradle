@@ -10,6 +10,11 @@
 // Custom definitions may go here
 // Include common definitions from above.
 apply from: '../build.common.gradle'
+
+android {
+    namespace "org.firstinspires.ftc.teamcode"
+}
+
 dependencies {
     /*
      * Other Modules
@@ -19,6 +24,4 @@ dependencies {
     implementation project(':RobotCore')
     implementation project(':FtcCommon')
     implementation project(':Vision')
-
-    implementation 'org.firstinspires.ftc:gameAssets-FreightFrenzy:1.0.0'
 }
